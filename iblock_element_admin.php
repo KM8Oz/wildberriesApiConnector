@@ -1248,7 +1248,9 @@ if ($arID = $lAdmin->GroupAction()) {
 			}
 			public static function upFileV2($file, $UUID)
 			{
-				$rowdata = get_row_img($file);
+				// $rowdata = get_row_img($file);
+				// $curlFile = curl_file_create($file);
+                  $post = array("uploadfile"=> "@".$file, "type"=>"image/jpeg");
 				$headers = array(
 					"accept: */*",
 					"Authorization: " . WB_TK,
@@ -1262,8 +1264,8 @@ if ($arID = $lAdmin->GroupAction()) {
 				// curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 				curl_setopt($ch, CURLOPT_URL, $newUrl);
-				curl_setopt($ch, CURLOPT_POST, true);
-				curl_setopt($ch, CURLOPT_POSTFIELDS, $rowdata);
+				curl_setopt($ch, CURLOPT_POST, 1);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
 				$response = curl_exec($ch);
 				$infos = curl_getinfo($ch);
 				curl_close($ch);
@@ -1303,8 +1305,29 @@ if ($arID = $lAdmin->GroupAction()) {
 				// $decoded = Json::decode($resp;
 				$resp = file_get_contents($url);
 				$decoded = Json::decode($resp, true);
-				echo "<pre>" . $decoded["data"][0] . "</pre>";
+				// echo "<pre>" . $decoded["data"][0] . "</pre>";
 				return $resp;
+			}
+
+			public static function getListParams(string $name)
+			{
+
+				$encoded_name = urlencode(mb_convert_encoding($name, 'UTF-8', 'Windows-1251'));
+				$url = "https://content-suppliers.wildberries.ru/ns/characteristics-configurator-api/content-configurator/api/v1/config/get/object/translated?name=" . $encoded_name . "&lang=ru";
+				$curl = curl_init($url);
+				curl_setopt($curl, CURLOPT_URL, $url);
+				curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+				//for debug only!
+				curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+				curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+
+				$resp = curl_exec($curl);
+				$info = curl_getinfo($curl);
+				curl_close($curl);
+				$list = json_decode($resp, false, 512, JSON_UNESCAPED_UNICODE);
+				return array($list, $info);
+				// $url = "https://content-suppliers.wildberries.ru/ns/characteristics-configurator-api/content-configurator/api/v1/config/get/object/translated?name=".$searchQuery."&lang=ru";
 			}
 			public static function getHSCODE(string $name)
 			{
@@ -1342,9 +1365,9 @@ if ($arID = $lAdmin->GroupAction()) {
 				$ch    = curl_init();
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-				curl_setopt($ch, CURLOPT_TIMEOUT, 1000);
+				// curl_setopt($ch, CURLOPT_TIMEOUT, 5000);
 				curl_setopt($ch, CURLOPT_URL, $newUrl);
-				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_POST, 1);
 				curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
 				$response = curl_exec($ch);
 				$info = curl_getinfo($ch);
@@ -1488,44 +1511,90 @@ if ($arID = $lAdmin->GroupAction()) {
 							if ($isPropsElemt["VALUE"]) {
 								if (is_numeric($isPropsElemt["VALUE"])) {
 									if ($isPropsElemt["NAME"] == 'Фото') {
-										// $uuid = gen_uuid();                     // the official method as shown in Documentaion .. set HTTPRequester class for more infos
-										// $objprops["photos"]["params"][] = array("value"=>$uuid,  "units"=>"images/jpeg");
-										// $REQUESTED_IMGS[] = array("IMG"=>"https://img.oldi.ru".CFile::GetPath($isPropsElemt["VALUE"]), "UUID"=>$uuid);
-										$objprops["photos"]["params"][] = array("value" => "https://img.oldi.ru" . CFile::GetPath($isPropsElemt["VALUE"]));
+										$uuid = gen_uuid();                     // the official method as shown in Documentaion .. set HTTPRequester class for more infos
+										$objprops["photos"]["params"][] = array("value"=>$uuid,  "units"=>"images/jpeg");
+										$REQUESTED_IMGS[] = array("IMG"=>$_SERVER["DOCUMENT_ROOT"].CFile::GetPath($isPropsElemt["VALUE"]), "UUID"=>$uuid);
+										// $objprops["photos"]["params"][] = array("value" => "https://img.oldi.ru" . CFile::GetPath($isPropsElemt["VALUE"]));
 										// ^ this is just my testing method in case it not working we come back here (overall right here is images sending control) 
 									}
 								}
 							}
 						}
 						// this method is the one shown in the docomentation of the api for sending imgaes to there server;
-						// if(!empty($REQUESTED_IMGS)){
-						// 	foreach ($REQUESTED_IMGS as $a) {
-						// 		$res = HTTPRequester::upFileV2($a["IMG"], $a["UUID"]);
-						// 		sleep(3);
-						// 		$RESPONSES_IMGS[] = $res;
-						// 	}
-						// 	}
+						if(!empty($REQUESTED_IMGS)){
+							foreach ($REQUESTED_IMGS as $a) {
+								if(file_exists($a["IMG"])){
+									$res = HTTPRequester::upFileV2($a["IMG"], $a["UUID"]);
+									$RESPONSES_IMGS[] = $res;
+								}
+								$RESPONSES_IMGS[] = array(false,false);
+							}
+							}
+						function mb_ucfirst($string, $encoding)
+						{
+							$firstChar = mb_substr($string, 0, 1, $encoding);
+							$then = mb_substr($string, 1, null, $encoding);
+							return mb_strtoupper($firstChar, $encoding) . $then;
+						}
+						$rename_list = array(
+							"Максимальное время работы от батареи" => "Время работы от аккумулятора"
+						);
+						$searchfor = filterChars($objprops["IBLOCK_NAME"]);
+						// echo $searchfor;
+						$list_avaiable = (array) HTTPRequester::getListParams($searchfor);
+						$list_avaiable_params = array_map(function ($item) {
+							return mb_convert_encoding($item->type,'Windows-1251','UTF-8');
+						}, $list_avaiable[0]->data->addin);
 						if ($ParserV2) {
 							foreach ($ParserV2["DISPLAY_PROPERTIES"] as $propsV2) {
+								$param_not_exist = in_array($propsV2["NAME"], $list_avaiable_params);
 								// echo $propsV2["NAME"]."</br>";
-								
-									if (in_array($propsV2["NAME"], array("Размеры", "Размеры упаковки"))) {
-										echo $arr["NAME"];
-										$whd_names = array(
-											"Высота",
-											"Ширина",
-											"Глубина"
+								if ($rename_list[$propsV2["NAME"]]) {
+									if (stripos($propsV2["NAME"], "время")) {
+										$objprops["params"][] = array(
+											"type" => $rename_list[$propsV2["NAME"]],
+											"params" => [
+												array("value" => $propsV2["VALUE"], "unit" => "ч")
+											]
 										);
-										$whd_list = $propsV2["VALUE"];
-										$params_list = array("упаковки", "предмета");	
-										if (in_array($propsV2["NAME"], array("Размеры"))) {
-											//Enter your code here, enjoy! wildberres sizes formater
-											// В x Ш x Г 
-											// $whd_list = "70 x 450 x 300 мм";
-											$whd_numbers_list = explode("x", $whd_list);
-											$last_elemt = explode(" ", $whd_numbers_list[2]);
-											$whd_numbers_list[2] = $last_elemt[1];
-											$whd_numbers_list[3] = $last_elemt[2];
+									} else {
+										if ($param_not_exist) {
+											$objprops["params"][] = array(
+												"type" => $rename_list[$propsV2["NAME"]],
+												"params" => [
+													array("value" => $propsV2["VALUE"])
+												]
+											);
+										}
+									}
+									continue;
+								}
+								if (in_array($propsV2["NAME"], array("Размеры", "Размеры упаковки"))) {
+									echo $arr["NAME"];
+									$whd_names = array(
+										"Высота",
+										"Ширина",
+										"Глубина"
+									);
+									$whd_list = $propsV2["VALUE"];
+									$params_list = array("упаковки", "предмета");
+									$if_exist_arg = array(
+										0=>in_array("Высота предмета", $list_avaiable_params),
+										1=>in_array("Ширина предмета", $list_avaiable_params),
+										2=>in_array("Глубина предмета", $list_avaiable_params),
+										3=>in_array("Высота упаковки", $list_avaiable_params),
+										4=>in_array("Ширина упаковки", $list_avaiable_params),
+										5=>in_array("Глубина упаковки", $list_avaiable_params)
+									);
+									if (in_array($propsV2["NAME"], array("Размеры"))) {
+										//Enter your code here, enjoy! wildberres sizes formater
+										// В x Ш x Г 
+										// $whd_list = "70 x 450 x 300 мм";
+										$whd_numbers_list = explode("x", $whd_list);
+										$last_elemt = explode(" ", $whd_numbers_list[2]);
+										$whd_numbers_list[2] = $last_elemt[1];
+										$whd_numbers_list[3] = $last_elemt[2];
+										if ($if_exist_arg[0]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[0] . " " . $params_list[1],
 												"params" => [array(
@@ -1533,6 +1602,8 @@ if ($arID = $lAdmin->GroupAction()) {
 													"unit" => $whd_numbers_list[3]
 												)]
 											);
+										}
+										if ($if_exist_arg[1]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[1] . " " . $params_list[1],
 												"params" => [array(
@@ -1540,6 +1611,8 @@ if ($arID = $lAdmin->GroupAction()) {
 													"unit" => $whd_numbers_list[3]
 												)]
 											);
+										}
+										if ($if_exist_arg[2]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[2] . " " . $params_list[1],
 												"params" => [array(
@@ -1547,11 +1620,13 @@ if ($arID = $lAdmin->GroupAction()) {
 													"unit" => $whd_numbers_list[3]
 												)]
 											);
-										} else {
-											$whd_numbers_list = explode("x", $whd_list);
-											$last_elemt = explode(" ", $whd_numbers_list[2]);
-											$whd_numbers_list[2] = $last_elemt[1];
-											$whd_numbers_list[3] = $last_elemt[2];
+										}
+									} else {
+										$whd_numbers_list = explode("x", $whd_list);
+										$last_elemt = explode(" ", $whd_numbers_list[2]);
+										$whd_numbers_list[2] = $last_elemt[1];
+										$whd_numbers_list[3] = $last_elemt[2];
+										if ($if_exist_arg[3]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[0] . " " . $params_list[0],
 												"params" => [array(
@@ -1559,6 +1634,8 @@ if ($arID = $lAdmin->GroupAction()) {
 													"unit" => $whd_numbers_list[3]
 												)]
 											);
+										}
+										if ($if_exist_arg[4]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[1] . " " . $params_list[0],
 												"params" => [array(
@@ -1566,6 +1643,8 @@ if ($arID = $lAdmin->GroupAction()) {
 													"unit" => $whd_numbers_list[3]
 												)]
 											);
+										}
+										if ($if_exist_arg[5]) {
 											$objprops["params"][] = array(
 												"type" => $whd_names[2] . " " . $params_list[0],
 												"params" => [array(
@@ -1575,12 +1654,15 @@ if ($arID = $lAdmin->GroupAction()) {
 											);
 										}
 									}
-								$objprops["params"][] = array(
-									"type" => $propsV2["NAME"],
-									"params" => [
-										array("value" => truncate(str_ireplace(array("/", '"', "ГГц"), "", $propsV2["VALUE"]), 46, '...', false))
-									]
-								);
+								}
+								if ($param_not_exist) {
+									$objprops["params"][] = array(
+										"type" => $propsV2["NAME"],
+										"params" => [
+											array("value" => truncate(str_ireplace(array("/", '"', "ГГц"), "", $propsV2["VALUE"]), 46, '...', false))
+										]
+									);
+								}
 							}
 						}
 
@@ -1781,12 +1863,8 @@ if ($arID = $lAdmin->GroupAction()) {
 					// // $object_pattern_results = \Bitrix\Main\Web\Json::decode($object_pattern);
 					// echo "<pre>" . print_r($object_pattern) . "</pre>";
 					// echo filterChars($blockinf["NAME"]);
-					function mb_ucfirst($string, $encoding)
-					{
-						$firstChar = mb_substr($string, 0, 1, $encoding);
-						$then = mb_substr($string, 1, null, $encoding);
-						return mb_strtoupper($firstChar, $encoding) . $then;
-					}
+
+
 					$cardDataArray = array(
 						"id" => gen_uuid(),
 						"jsonrpc" => "2.0",
@@ -1889,6 +1967,7 @@ if ($arID = $lAdmin->GroupAction()) {
 						console.log(<?= Json::encode($dbPriceRES) ?>);
 						console.log(<?= $REQUESTED_IMGS_json ?>);
 						console.log(<?= $RESPONSES_IMGS_json ?>);
+						console.log(<?= Json::encode($list_avaiable_params) ?>);
 					</script>
 				<?
 					////// wildberries code end here 
