@@ -15,7 +15,8 @@ Loader::includeModule("iblock");
 require_once($_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/iblock/prolog.php");
 IncludeModuleLangFile(__FILE__);
 IncludeModuleLangFile($_SERVER["DOCUMENT_ROOT"] . BX_ROOT . "/modules/main/interface/admin_lib.php");
-
+define("WB_TK", "........................................."); // your api key
+define("SUPP_ID", ".................................."); // supplier id
 $bBizproc = Loader::includeModule("bizproc");
 $bWorkflow = Loader::includeModule("workflow");
 $bFileman = Loader::includeModule("fileman");
@@ -1168,8 +1169,7 @@ if ($arID = $lAdmin->GroupAction()) {
 			// debug_time(array(), 'sending element to wildberries finish');
 			return $arResult; // this is the parsed props that we need to construct a valid product for Wildberries
 		}
-		define("WB_TK", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3NJRCI6IjBhOGM2YjM2LWI2ZmMtNDg2OS1iZmRiLWIxNWE3NmEzNzI4YSJ9.LBXeBWzMHHBc_HPAsURaKjhH1bkHVr_ajWsj6KHkkIU");
-		define("SUPP_ID", "3fa85f64-5717-4562-b3fc-2c963f66afa6");
+		
 		class HTTPRequester
 		{
 
@@ -1222,7 +1222,7 @@ if ($arID = $lAdmin->GroupAction()) {
 					CURLOPT_HTTPHEADER => array(
 						"Authorization: " . WB_TK,
 						"X-File-Id: " . x_file_uuid(),
-						"X-Supplier-ID: fa226d30-f50b-409e-8f15-cf3aef2bda3f",
+						"X-Supplier-ID: ". SUPP_ID,
 						"Content-Type: multipart/form-data",
 						"Content-Length: " . strlen(file_get_contents($filename)),
 						"accept: */*"
@@ -1256,7 +1256,7 @@ if ($arID = $lAdmin->GroupAction()) {
 					"Authorization: " . WB_TK,
 					"Content-Type: multipart/form-data",
 					"X-File-Id: " . $UUID
-					// "X-Supplier-ID: fa226d30-f50b-409e-8f15-cf3aef2bda3f",
+					// "X-Supplier-ID: ".SUPP_ID,
 				);
 				$newUrl = "https://suppliers-api.wildberries.ru/upload/file/multipart";
 				// $query = \Bitrix\Main\Web\Json::encode($params);
